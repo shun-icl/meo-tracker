@@ -10,22 +10,28 @@ st.set_page_config(
     layout="centered",
 )
 
-# ========== エリア座標 ==========
-AREAS = {
-    "福岡市": (33.5902, 130.4017),
-    "熊本市": (32.8032, 130.7079),
-    "長崎市": (32.7503, 129.8779),
-    "北九州市": (33.8835, 130.8752),
-    "大分市": (33.2382, 131.6126),
-    "鹿児島市": (31.5966, 130.5571),
-    "佐賀市": (33.2494, 130.2988),
-    "久留米市": (33.3191, 130.5083),
-    "東京都": (35.6762, 139.6503),
-    "大阪市": (34.6937, 135.5023),
-    "名古屋市": (35.1815, 136.9066),
-    "札幌市": (43.0618, 141.3545),
-    "広島市": (34.3853, 132.4553),
-}
+def geocode_city(city_name, api_key):
+    """市名から緯度経度を取得（SerpAPI の Google Maps 経由）"""
+    params = {
+        "engine": "google_maps",
+        "q": city_name,
+        "hl": "ja",
+        "api_key": api_key,
+    }
+    resp = requests.get("https://serpapi.com/search.json", params=params, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    if "local_map" in data:
+        lm = data["local_map"]
+        lat = lm.get("gps_coordinates", {}).get("latitude")
+        lng = lm.get("gps_coordinates", {}).get("longitude")
+        if lat and lng:
+            return (lat, lng)
+    pr = data.get("place_results", {})
+    gps_coords = pr.get("gps_coordinates", {})
+    if gps_coords.get("latitude") and gps_coords.get("longitude"):
+        return (gps_coords["latitude"], gps_coords["longitude"])
+    return None
 
 # ========== キーワードテンプレ ==========
 KEYWORD_TEMPLATES = [
@@ -91,7 +97,7 @@ if not api_key:
         st.stop()
 
 # --- 入力フォーム ---
-area = st.selectbox("エリア", options=list(AREAS.keys()), index=0)
+area = st.text_input("エリア（市区町村名）", placeholder="例: 福岡市、宮崎市、横浜市")
 
 col1, col2 = st.columns([3, 1])
 with col1:
@@ -120,7 +126,13 @@ if st.button("🔍 検索する", type="primary", use_container_width=True):
         st.warning("キーワードを入力してください")
         st.stop()
 
-    lat, lng = AREAS[area]
+    # 座標を取得
+    with st.spinner(f"「{area}」の位置情報を取得中..."):
+        coords = geocode_city(area, api_key)
+        if coords is None:
+            st.error(f"「{area}」の位置情報が取得できませんでした。正しい市区町村名か確認してください。")
+            st.stop()
+        lat, lng = coords
 
     with st.spinner("Google Maps を検索中..."):
         try:
