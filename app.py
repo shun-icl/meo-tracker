@@ -118,7 +118,7 @@ else:
 
 search_keyword = f"{area} {keyword}" if keyword else ""
 
-clinic_name = st.text_input("医院名（任意・部分一致で検索）", placeholder="例: すこやか歯科")
+clinic_name = st.text_input("医院名（任意・部分一致で検索）", placeholder="例: さくら歯科")
 
 # --- 検索ボタン ---
 if st.button("🔍 検索する", type="primary", use_container_width=True):
