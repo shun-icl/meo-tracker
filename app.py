@@ -97,7 +97,7 @@ if not api_key:
         st.stop()
 
 # --- 入力フォーム ---
-area = st.text_input("エリア（市区町村名）", placeholder="例: 福岡市、宮崎市、横浜市")
+area = st.text_input("エリア", placeholder="例: 福岡市、博多駅、天神南駅")
 
 keyword = st.selectbox("キーワード", options=KEYWORD_TEMPLATES)
 
