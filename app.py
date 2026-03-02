@@ -99,22 +99,7 @@ if not api_key:
 # --- 入力フォーム ---
 area = st.text_input("エリア（市区町村名）", placeholder="例: 福岡市、宮崎市、横浜市")
 
-col1, col2 = st.columns([3, 1])
-with col1:
-    keyword_custom = st.text_input(
-        "キーワード",
-        placeholder="例: インプラント",
-    )
-with col2:
-    keyword_template = st.selectbox("よく使う", options=["--"] + KEYWORD_TEMPLATES)
-
-# 手入力を優先、空欄ならテンプレを使う
-if keyword_custom:
-    keyword = keyword_custom
-elif keyword_template != "--":
-    keyword = keyword_template
-else:
-    keyword = ""
+keyword = st.selectbox("キーワード", options=KEYWORD_TEMPLATES)
 
 search_keyword = f"{area} {keyword}" if keyword else ""
 
