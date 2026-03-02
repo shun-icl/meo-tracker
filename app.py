@@ -108,11 +108,11 @@ with col1:
 with col2:
     keyword_template = st.selectbox("よく使う", options=["--"] + KEYWORD_TEMPLATES)
 
-# テンプレ選択時はそちらを優先
-if keyword_template != "--":
-    keyword = keyword_template
-elif keyword_custom:
+# 手入力を優先、空欄ならテンプレを使う
+if keyword_custom:
     keyword = keyword_custom
+elif keyword_template != "--":
+    keyword = keyword_template
 else:
     keyword = ""
 
