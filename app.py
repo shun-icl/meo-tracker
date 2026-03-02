@@ -164,49 +164,104 @@ if st.button("🔍 検索する", type="primary", use_container_width=True):
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # --- 競合分析チャート ---
-    st.divider()
-    st.subheader("📊 競合分析")
-
-    # 数値データのみ抽出
+    # --- クライアント診断 ---
     chart_data = [r for r in results if r["評価"] != "-"]
-    if chart_data:
-        df_chart = pd.DataFrame(chart_data)
-
-        # 口コミ数 vs 順位（横棒）
-        st.caption("口コミ数と順位の関係（口コミが多い＝上位とは限らない）")
-        df_bar = df_chart.set_index("医院名")[["口コミ数"]].sort_values("口コミ数", ascending=True)
-        st.bar_chart(df_bar)
-
-        # 評価 vs 口コミ数 の散布図
-        st.caption("評価 × 口コミ数（右上ほど強い競合、左下ほどチャンス）")
-        st.scatter_chart(
-            df_chart,
-            x="口コミ数",
-            y="評価",
-            size="順位",
-        )
-
-        # --- チャンス分析 ---
+    if clinic_name and chart_data:
+        match = find_clinic_rank(results, clinic_name)
         avg_reviews = sum(r["口コミ数"] for r in chart_data) / len(chart_data)
         avg_rating = sum(r["評価"] for r in chart_data) / len(chart_data)
+        top3 = [r for r in chart_data if r["順位"] <= 3]
+        top3_avg_reviews = sum(r["口コミ数"] for r in top3) / len(top3) if top3 else 0
+        top3_avg_rating = sum(r["評価"] for r in top3) / len(top3) if top3 else 0
 
         st.divider()
-        st.subheader("💡 チャンス分析")
+        st.subheader("🩺 クライアント診断")
 
-        weak_above = [r for r in chart_data if r["口コミ数"] < avg_reviews and r["順位"] <= 5]
-        if weak_above:
-            st.success("**口コミが少ないのに上位にいる医院（追い抜きやすい）**")
-            for r in weak_above:
-                st.write(f"- **{r['順位']}位** {r['医院名']}（口コミ {r['口コミ数']}件 / 平均{avg_reviews:.0f}件）")
+        if match:
+            rank = match["順位"]
+            rating = match["評価"] if match["評価"] != "-" else 0
+            reviews = match["口コミ数"]
 
-        strong_below = [r for r in chart_data if r["口コミ数"] >= avg_reviews and r["順位"] > 5]
-        if strong_below:
-            st.info("**口コミが多いのに下位の医院（MEO対策が弱い可能性）**")
-            for r in strong_below:
-                st.write(f"- **{r['順位']}位** {r['医院名']}（口コミ {r['口コミ数']}件）")
+            # --- 現状サマリ ---
+            st.markdown(f"**{match['医院名']}** の現状")
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("現在の順位", f"{rank}位", delta=f"トップ3まであと{max(rank - 3, 0)}つ" if rank > 3 else "トップ3圏内")
+            review_gap = int(top3_avg_reviews - reviews)
+            col_b.metric("口コミ数", f"{reviews}件", delta=f"トップ3平均まで{review_gap:+d}件" if review_gap != 0 else "トップ3平均と同等")
+            rating_gap = top3_avg_rating - rating if rating else 0
+            col_c.metric("評価", f"⭐ {rating}", delta=f"トップ3平均まで{rating_gap:+.1f}" if abs(rating_gap) > 0.05 else "トップ3平均と同等")
 
-        st.divider()
-        st.caption(
-            f"上位{len(chart_data)}件の平均: 評価 {avg_rating:.1f} / 口コミ {avg_reviews:.0f}件"
-        )
+            # --- 改善アクション ---
+            st.divider()
+            st.markdown("**改善アクション**")
+
+            actions = []
+
+            # 口コミ数の診断
+            if reviews < top3_avg_reviews:
+                need = int(top3_avg_reviews - reviews)
+                actions.append(
+                    f"📝 **口コミを増やす（あと約{need}件）** — トップ3の平均は{top3_avg_reviews:.0f}件。"
+                    f"来院後のフォローメールやQRコード掲示で口コミ獲得の仕組みを作りましょう。"
+                )
+            elif reviews >= top3_avg_reviews:
+                actions.append(
+                    f"✅ **口コミ数は十分**（{reviews}件 / トップ3平均{top3_avg_reviews:.0f}件）。"
+                    f"口コミの「質」と返信対応が次の差別化ポイントです。"
+                )
+
+            # 評価の診断
+            if rating and rating < 4.5:
+                actions.append(
+                    f"⭐ **評価を上げる（現在{rating}）** — "
+                    f"低評価の口コミがあれば丁寧に返信し、満足度の高い患者に口コミをお願いしましょう。"
+                )
+            elif rating and rating >= 4.5:
+                actions.append(
+                    f"✅ **評価は高水準**（{rating}）。この評価を維持しつつ口コミ数を増やすのが理想です。"
+                )
+
+            # 順位の診断
+            if rank > 3:
+                above_me = [r for r in chart_data if r["順位"] < rank]
+                weaker_above = [r for r in above_me if r["口コミ数"] < reviews]
+                if weaker_above:
+                    names = "、".join(r["医院名"] for r in weaker_above[:3])
+                    actions.append(
+                        f"🎯 **順位を逆転できる可能性あり** — "
+                        f"{names} は口コミ数で下回っているのに上位です。"
+                        f"Googleビジネスプロフィールの情報充実（カテゴリ・営業時間・写真）で逆転が狙えます。"
+                    )
+                else:
+                    actions.append(
+                        f"📋 **Googleビジネスプロフィールの最適化** — "
+                        f"カテゴリ設定、営業時間、写真の充実、投稿の定期更新で関連性スコアを上げましょう。"
+                    )
+
+            for action in actions:
+                st.markdown(action)
+
+            # --- トップ3との比較表 ---
+            if top3:
+                st.divider()
+                st.markdown("**トップ3との比較**")
+                compare = top3 + [match] if rank > 3 else top3
+                df_compare = pd.DataFrame(compare)
+                def highlight_client(row):
+                    if clinic_name.lower() in row["医院名"].lower():
+                        return ["background-color: #fff3cd; font-weight: bold"] * len(row)
+                    return [""] * len(row)
+                st.dataframe(
+                    df_compare.style.apply(highlight_client, axis=1),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        else:
+            st.warning(
+                f"「{clinic_name}」がトップ{len(results)}位以内に見つかりませんでした。\n\n"
+                f"**まずはランクインすることが第一目標です。** "
+                f"Googleビジネスプロフィールの登録・最適化から始めましょう。\n\n"
+                f"- 上位{len(chart_data)}件の平均: 口コミ {avg_reviews:.0f}件 / 評価 {avg_rating:.1f}\n"
+                f"- トップ3の平均: 口コミ {top3_avg_reviews:.0f}件 / 評価 {top3_avg_rating:.1f}"
+            )
