@@ -164,13 +164,49 @@ if st.button("🔍 検索する", type="primary", use_container_width=True):
     else:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # --- 分析コメント ---
-    if results:
-        avg_rating = sum(r["評価"] for r in results if r["評価"] != "-") / max(
-            sum(1 for r in results if r["評価"] != "-"), 1
+    # --- 競合分析チャート ---
+    st.divider()
+    st.subheader("📊 競合分析")
+
+    # 数値データのみ抽出
+    chart_data = [r for r in results if r["評価"] != "-"]
+    if chart_data:
+        df_chart = pd.DataFrame(chart_data)
+
+        # 口コミ数 vs 順位（横棒）
+        st.caption("口コミ数と順位の関係（口コミが多い＝上位とは限らない）")
+        df_bar = df_chart.set_index("医院名")[["口コミ数"]].sort_values("口コミ数", ascending=True)
+        st.bar_chart(df_bar)
+
+        # 評価 vs 口コミ数 の散布図
+        st.caption("評価 × 口コミ数（右上ほど強い競合、左下ほどチャンス）")
+        st.scatter_chart(
+            df_chart,
+            x="口コミ数",
+            y="評価",
+            size="順位",
         )
-        avg_reviews = sum(r["口コミ数"] for r in results) / len(results)
+
+        # --- チャンス分析 ---
+        avg_reviews = sum(r["口コミ数"] for r in chart_data) / len(chart_data)
+        avg_rating = sum(r["評価"] for r in chart_data) / len(chart_data)
+
+        st.divider()
+        st.subheader("💡 チャンス分析")
+
+        weak_above = [r for r in chart_data if r["口コミ数"] < avg_reviews and r["順位"] <= 5]
+        if weak_above:
+            st.success("**口コミが少ないのに上位にいる医院（追い抜きやすい）**")
+            for r in weak_above:
+                st.write(f"- **{r['順位']}位** {r['医院名']}（口コミ {r['口コミ数']}件 / 平均{avg_reviews:.0f}件）")
+
+        strong_below = [r for r in chart_data if r["口コミ数"] >= avg_reviews and r["順位"] > 5]
+        if strong_below:
+            st.info("**口コミが多いのに下位の医院（MEO対策が弱い可能性）**")
+            for r in strong_below:
+                st.write(f"- **{r['順位']}位** {r['医院名']}（口コミ {r['口コミ数']}件）")
+
         st.divider()
         st.caption(
-            f"上位{len(results)}件の平均: 評価 {avg_rating:.1f} / 口コミ {avg_reviews:.0f}件"
+            f"上位{len(chart_data)}件の平均: 評価 {avg_rating:.1f} / 口コミ {avg_reviews:.0f}件"
         )
